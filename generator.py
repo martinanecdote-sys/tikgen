@@ -154,8 +154,7 @@ class VideoGenerator:
             lines.append("")
 
         with open(vtt_path, "w", encoding="utf-8") as f:
-            f.write("
-".join(lines))
+            f.write("\n".join(lines))
 
     def get_pexels_video(self, query, output_path):
         if not PEXELS_API_KEY:
