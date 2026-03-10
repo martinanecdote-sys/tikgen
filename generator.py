@@ -267,4 +267,4 @@ class VideoGenerator:
             return final_path, script
 
         finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)True)
+            shutil.rmtree(tmpdir, ignore_errors=True)
