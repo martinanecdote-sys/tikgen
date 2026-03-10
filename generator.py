@@ -119,17 +119,43 @@ class VideoGenerator:
             rate="+8%",
             pitch="+0Hz"
         )
-        submaker = edge_tts.SubMaker()
-
+        # Collect word timings manually
+        word_timings = []
         with open(audio_path, "wb") as f:
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
                     f.write(chunk["data"])
                 elif chunk["type"] == "WordBoundary":
-                    submaker.feed(chunk)
+                    word_timings.append({
+                        "word": chunk["text"],
+                        "offset": chunk["offset"] / 10_000_000,
+                        "duration": chunk["duration"] / 10_000_000
+                    })
+
+        # Build VTT from word timings (3 words per cue)
+        self._build_vtt(word_timings, vtt_path)
+
+    def _build_vtt(self, word_timings, vtt_path):
+        def fmt(t):
+            h = int(t // 3600)
+            m = int((t % 3600) // 60)
+            s = t % 60
+            return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".", ".")
+
+        lines = ["WEBVTT", ""]
+        group_size = 3
+        for i in range(0, len(word_timings), group_size):
+            group = word_timings[i:i+group_size]
+            start = group[0]["offset"]
+            end = group[-1]["offset"] + group[-1]["duration"]
+            text = " ".join(w["word"] for w in group)
+            lines.append(f"{fmt(start)} --> {fmt(end)}")
+            lines.append(text)
+            lines.append("")
 
         with open(vtt_path, "w", encoding="utf-8") as f:
-            f.write(submaker.get_subs())
+            f.write("
+".join(lines))
 
     def get_pexels_video(self, query, output_path):
         if not PEXELS_API_KEY:
