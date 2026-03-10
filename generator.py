@@ -11,8 +11,6 @@ import edge_tts
 import static_ffmpeg
 from groq import Groq
 
-static_ffmpeg.add_paths()
-
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
 
@@ -146,6 +144,7 @@ class VideoGenerator:
             f.write(content)
 
     def create_video(self, niche, progress_callback=None):
+        static_ffmpeg.add_paths()
         tmpdir = tempfile.mkdtemp(prefix="tiktok_")
         try:
             audio_path = os.path.join(tmpdir, "audio.mp3")
