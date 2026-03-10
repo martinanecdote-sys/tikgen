@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TikGen — Vidéos TikTok automatiques</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #080808;
+    --surface:  #111111;
+    --surface2: #1a1a1a;
+    --cyan:     #00f2ea;
+    --pink:     #ff0050;
+    --white:    #f5f5f5;
+    --muted:    #666;
+    --radius:   18px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ── Noise texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Glow blobs ── */
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .blob-cyan  { width: 400px; height: 400px; background: var(--cyan);  top: -100px; right: -80px; }
+  .blob-pink  { width: 350px; height: 350px; background: var(--pink);  bottom: 60px; left: -100px; }
+
+  /* ── Layout ── */
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 20px 48px;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 44px 0 32px;
+    text-align: center;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    letter-spacing: 3px;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--cyan) 0%, #fff 50%, var(--pink) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .tagline {
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  /* ── Section title ── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* ── Niche grid ── */
+  .niche-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .niche-card {
+    background: var(--surface);
+    border: 1.5px solid #222;
+    border-radius: var(--radius);
+    padding: 20px 16px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(.22,.68,0,1.2);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .niche-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--cyan), var(--pink));
+    opacity: 0;
+    transition: opacity 0.2s;
+    border-radius: var(--radius);
+  }
+
+  .niche-card.selected {
+    border-color: var(--cyan);
+    transform: scale(1.03);
+    box-shadow: 0 0 0 1px var(--cyan), 0 8px 32px rgba(0,242,234,.15);
+  }
+
+  .niche-card.selected::before { opacity: 0.08; }
+
+  .niche-card:active { transform: scale(0.97); }
+
+  .niche-emoji {
+    font-size: 32px;
+    display: block;
+    margin-bottom: 8px;
+    position: relative;
+  }
+
+  .niche-name {
+    font-size: 15px;
+    font-weight: 600;
+    display: block;
+    position: relative;
+  }
+
+  .niche-desc {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+    line-height: 1.4;
+    position: relative;
+  }
+
+  /* ── Generate button ── */
+  .btn-generate {
+    width: 100%;
+    padding: 18px;
+    background: linear-gradient(135deg, var(--cyan) 0%, #00c8c0 100%);
+    color: #000;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-generate:disabled {
+    background: #222;
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .btn-generate:not(:disabled):active { transform: scale(0.98); }
+
+  .btn-generate .btn-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  /* ── Progress card ── */
+  .progress-card {
+    background: var(--surface);
+    border: 1.5px solid #222;
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-top: 24px;
+    display: none;
+  }
+
+  .progress-card.visible { display: block; }
+
+  .progress-label {
+    font-size: 14px;
+    color: var(--white);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #333;
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .progress-bar-track {
+    height: 4px;
+    background: #222;
+    border-radius: 100px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--pink));
+    border-radius: 100px;
+    transition: width 0.6s ease;
+    width: 0%;
+  }
+
+  /* ── Result card ── */
+  .result-card {
+    background: var(--surface);
+    border: 1.5px solid #1f3a1f;
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-top: 24px;
+    display: none;
+  }
+
+  .result-card.visible { display: block; }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    font-size: 15px;
+    color: #4ade80;
+  }
+
+  .script-box {
+    background: var(--surface2);
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.65;
+    color: #ccc;
+    max-height: 180px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: #333 transparent;
+  }
+
+  .script-box::-webkit-scrollbar { width: 4px; }
+  .script-box::-webkit-scrollbar-track { background: transparent; }
+  .script-box::-webkit-scrollbar-thumb { background: #333; border-radius: 100px; }
+
+  .btn-download {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--pink) 0%, #cc003f 100%);
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-download:active { transform: scale(0.98); }
+
+  .btn-again {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    border: 1.5px solid #222;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-again:hover { border-color: #444; color: var(--white); }
+
+  /* ── Error card ── */
+  .error-card {
+    background: #1a0808;
+    border: 1.5px solid #3a1111;
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-top: 24px;
+    display: none;
+    font-size: 13px;
+    color: #f87171;
+    line-height: 1.6;
+  }
+
+  .error-card.visible { display: block; }
+
+  .error-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: auto;
+    padding-top: 40px;
+    text-align: center;
+    font-size: 11px;
+    color: #333;
+  }
+
+  /* ── Pulse animation on generate btn ── */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,242,234,0.3); }
+    50%       { box-shadow: 0 0 0 12px rgba(0,242,234,0); }
+  }
+
+  .btn-generate.ready { animation: pulse-glow 2.5s ease-in-out infinite; }
+
+  /* ── Step indicators ── */
+  .steps {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+
+  .step {
+    flex: 1;
+    height: 3px;
+    background: #1a1a1a;
+    border-radius: 100px;
+    transition: background 0.4s;
+  }
+
+  .step.active { background: var(--cyan); }
+  .step.done   { background: #4ade80; }
+</style>
+</head>
+<body>
+
+<div class="blob blob-cyan"></div>
+<div class="blob blob-pink"></div>
+
+<div class="container">
+  <header>
+    <div class="logo">TIKGEN</div>
+    <p class="tagline">Vidéos TikTok virales générées automatiquement</p>
+  </header>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step active" id="step1"></div>
+    <div class="step" id="step2"></div>
+    <div class="step" id="step3"></div>
+  </div>
+
+  <!-- Niche selection -->
+  <p class="section-label">Choisis ton sujet</p>
+
+  <div class="niche-grid">
+    <div class="niche-card selected" data-niche="foot" onclick="selectNiche(this)">
+      <span class="niche-emoji">⚽</span>
+      <span class="niche-name">Football</span>
+      <span class="niche-desc">Anecdotes & stats incroyables</span>
+    </div>
+    <div class="niche-card" data-niche="histoire" onclick="selectNiche(this)">
+      <span class="niche-emoji">🏛️</span>
+      <span class="niche-name">Histoire</span>
+      <span class="niche-desc">Faits historiques choquants</span>
+    </div>
+    <div class="niche-card" data-niche="quiz" onclick="selectNiche(this)">
+      <span class="niche-emoji">🧠</span>
+      <span class="niche-name">Quiz</span>
+      <span class="niche-desc">90% des gens ratent</span>
+    </div>
+    <div class="niche-card" data-niche="melange" onclick="selectNiche(this)">
+      <span class="niche-emoji">🎲</span>
+      <span class="niche-name">Surprise</span>
+      <span class="niche-desc">IA choisit le plus viral</span>
+    </div>
+  </div>
+
+  <!-- Generate button -->
+  <button class="btn-generate ready" id="btnGenerate" onclick="generate()">
+    <span class="btn-inner">
+      <span>🎬</span>
+      <span>Générer la vidéo</span>
+    </span>
+  </button>
+
+  <!-- Progress card -->
+  <div class="progress-card" id="progressCard">
+    <div class="progress-label">
+      <div class="spinner" id="spinner"></div>
+      <span id="progressText">Démarrage...</span>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <!-- Result card -->
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      <span>✅</span>
+      <span>Vidéo prête !</span>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;">Script généré</p>
+    <div class="script-box" id="scriptBox"></div>
+    <a class="btn-download" id="btnDownload" href="#" download>
+      <span>⬇️</span>
+      <span>Télécharger la vidéo</span>
+    </a>
+    <button class="btn-again" onclick="resetUI()">🔄 Générer une nouvelle vidéo</button>
+  </div>
+
+  <!-- Error card -->
+  <div class="error-card" id="errorCard">
+    <div class="error-title">❌ Une erreur s'est produite</div>
+    <div id="errorText"></div>
+    <button class="btn-again" style="margin-top:14px;" onclick="resetUI()">Réessayer</button>
+  </div>
+
+  <footer>
+    Powered by Groq · Edge TTS · Pexels · ffmpeg
+  </footer>
+</div>
+
+<script>
+  let selectedNiche = 'foot';
+  let currentJobId = null;
+  let pollInterval = null;
+
+  // Progress steps mapping
+  const PROGRESS_STEPS = {
+    'Démarrage'      : 8,
+    'script'         : 20,
+    'voix'           : 45,
+    'fond'           : 65,
+    'durée'          : 70,
+    'sous-titres'    : 80,
+    'Assemblage'     : 90,
+    'prête'          : 100,
+  };
+
+  function getProgressPct(msg) {
+    for (const [key, pct] of Object.entries(PROGRESS_STEPS)) {
+      if (msg.toLowerCase().includes(key.toLowerCase())) return pct;
+    }
+    return null;
+  }
+
+  function selectNiche(card) {
+    document.querySelectorAll('.niche-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    selectedNiche = card.dataset.niche;
+  }
+
+  function setStep(n) {
+    for (let i = 1; i <= 3; i++) {
+      const el = document.getElementById('step' + i);
+      el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+    }
+  }
+
+  async function generate() {
+    const btn = document.getElementById('btnGenerate');
+    btn.disabled = true;
+    btn.classList.remove('ready');
+    btn.querySelector('.btn-inner').innerHTML = '<span>⏳</span><span>Génération en cours...</span>';
+
+    // Hide results/errors
+    document.getElementById('resultCard').classList.remove('visible');
+    document.getElementById('errorCard').classList.remove('visible');
+    document.getElementById('progressCard').classList.add('visible');
+    document.getElementById('progressText').textContent = 'Démarrage...';
+    document.getElementById('progressFill').style.width = '5%';
+    setStep(2);
+
+    try {
+      const resp = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ niche: selectedNiche })
+      });
+      const data = await resp.json();
+      currentJobId = data.job_id;
+      pollStatus();
+    } catch (e) {
+      showError('Impossible de contacter le serveur. Vérifie ta connexion.');
+      resetBtn();
+    }
+  }
+
+  function pollStatus() {
+    let lastPct = 5;
+    pollInterval = setInterval(async () => {
+      try {
+        const resp = await fetch('/status/' + currentJobId);
+        const job = await resp.json();
+
+        // Update progress text
+        document.getElementById('progressText').textContent = job.progress || '...';
+
+        // Update progress bar
+        const pct = getProgressPct(job.progress || '');
+        if (pct && pct > lastPct) {
+          lastPct = pct;
+          document.getElementById('progressFill').style.width = pct + '%';
+        }
+
+        if (job.status === 'done') {
+          clearInterval(pollInterval);
+          showResult(job.script);
+        } else if (job.status === 'error') {
+          clearInterval(pollInterval);
+          showError(job.error || 'Erreur inconnue');
+          resetBtn();
+        }
+      } catch (e) {
+        // Network hiccup, keep polling
+      }
+    }, 1500);
+  }
+
+  function showResult(script) {
+    document.getElementById('progressCard').classList.remove('visible');
+    document.getElementById('scriptBox').textContent = script || '';
+    document.getElementById('btnDownload').href = '/download/' + currentJobId;
+    document.getElementById('resultCard').classList.add('visible');
+    setStep(3);
+    resetBtn();
+  }
+
+  function showError(msg) {
+    document.getElementById('progressCard').classList.remove('visible');
+    document.getElementById('errorText').textContent = msg;
+    document.getElementById('errorCard').classList.add('visible');
+    setStep(1);
+  }
+
+  function resetBtn() {
+    const btn = document.getElementById('btnGenerate');
+    btn.disabled = false;
+    btn.classList.add('ready');
+    btn.querySelector('.btn-inner').innerHTML = '<span>🎬</span><span>Générer la vidéo</span>';
+  }
+
+  function resetUI() {
+    if (pollInterval) clearInterval(pollInterval);
+    currentJobId = null;
+    document.getElementById('progressCard').classList.remove('visible');
+    document.getElementById('resultCard').classList.remove('visible');
+    document.getElementById('errorCard').classList.remove('visible');
+    document.getElementById('progressFill').style.width = '0%';
+    setStep(1);
+    resetBtn();
+  }
+</script>
+</body>
+</html>
