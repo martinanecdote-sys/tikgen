@@ -8,7 +8,11 @@ import shutil
 import requests
 import subprocess
 import edge_tts
+import static_ffmpeg
 from groq import Groq
+
+# Add ffmpeg/ffprobe to PATH automatically
+static_ffmpeg.add_paths()
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
@@ -263,4 +267,4 @@ class VideoGenerator:
             return final_path, script
 
         finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
+            shutil.rmtree(tmpdir, ignore_errors=True)True)
