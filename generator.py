@@ -126,13 +126,10 @@ class VideoGenerator:
                 if chunk["type"] == "audio":
                     f.write(chunk["data"])
                 elif chunk["type"] == "WordBoundary":
-                    submaker.create_sub(
-                        (chunk["offset"], chunk["duration"]),
-                        chunk["text"]
-                    )
+                    submaker.feed(chunk)
 
         with open(vtt_path, "w", encoding="utf-8") as f:
-            f.write(submaker.generate_subs(words_in_cue=3))
+            f.write(submaker.get_subs())
 
     def get_pexels_video(self, query, output_path):
         if not PEXELS_API_KEY:
